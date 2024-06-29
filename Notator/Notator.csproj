@@ -9,13 +9,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="assets\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Silk.NET.Core" Version="2.21.0" />
     <PackageReference Include="Silk.NET.OpenGL" Version="2.21.0" />
     <PackageReference Include="Silk.NET.Windowing" Version="2.21.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="resources\shaders\Basic.shader">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,5 @@
 ﻿using Silk.NET.GLFW;
+using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
 using System;
@@ -14,6 +15,12 @@ namespace Notator
 {
     internal class Application
     {
+        struct ShaderInfo(string name, int index)
+        {
+            public readonly string Name => name;
+            public readonly int Index => index;
+        }
+
         #region Private Properties
 
         private IWindow MainWindow { get; init; }
@@ -28,33 +35,13 @@ namespace Notator
 
         private uint Program { get; set; }
 
-        private static string VertexShaderSource => @"
-        #version 330 core
-        layout (location = 0) in vec3 aPosition;
-        
-        void main()
-        {
-            gl_Position = vec4(aPosition.x, aPosition.y, aPosition.z, 1.0);
-        }
-        ";
-
-        private static string FragmentShaderSource => @"
-        #version 330 core
-        layout (location = 0) out vec4 oColor;
-
-        void main()
-        {
-            oColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-        }
-        ";
-
         private static float[] Vertices =>
         [
             //X    Y      Z
-             0.5f,  0.5f, 0.0f,
-             0.5f, -0.5f, 0.0f,
-            -0.5f, -0.5f, 0.0f,
-            -0.5f,  0.5f, 0.5f
+            100.0f, 100.0f, 0.0f,
+            200.0f, 100.0f, 0.0f,
+            200.0f, 200.0f, 0.0f,
+            100.0f, 200.0f, 0.0f
         ];
 
         private static uint[] Indices =>
@@ -63,7 +50,11 @@ namespace Notator
             1u, 2u, 3u
         ];
 
-        private static Dictionary<ShaderType, string> ShaderNames => new() { { ShaderType.VertexShader, "Vertex" }, {ShaderType.FragmentShader, "Fragment" } };
+        private static Dictionary<ShaderType, ShaderInfo> ShaderTypes => new() 
+        { 
+            { ShaderType.VertexShader,   new("Vertex",   0) }, 
+            { ShaderType.FragmentShader, new("Fragment", 1) } 
+        };
 
         #endregion
 
@@ -134,10 +125,13 @@ namespace Notator
             fixed (void* buffer = Indices)
                 OpenGL.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint)(Indices.Length * sizeof(uint)), buffer, BufferUsageARB.StaticDraw);
 
+            // Get the shader source code
+            string[] shaderSource = ReadShaderFile("Basic.shader");
+
             // Create the vertex shader
             uint vertexShader = OpenGL.CreateShader(ShaderType.VertexShader);
             // Set the shader source code
-            OpenGL.ShaderSource(vertexShader, VertexShaderSource);
+            OpenGL.ShaderSource(vertexShader, shaderSource[0]);
 
             // Compile the vertex shader
             OpenGL.CompileShader(vertexShader);
@@ -149,7 +143,7 @@ namespace Notator
             // Create the fragment shader
             uint fragmentShader = OpenGL.CreateShader(ShaderType.FragmentShader);
             // Set the shader source code
-            OpenGL.ShaderSource(fragmentShader, FragmentShaderSource);
+            OpenGL.ShaderSource(fragmentShader, shaderSource[1]);
 
             // Compile the fragment shader
             OpenGL.CompileShader(fragmentShader);
@@ -180,6 +174,20 @@ namespace Notator
             // Delete the shaders
             OpenGL.DeleteShader(vertexShader);
             OpenGL.DeleteShader(fragmentShader);
+
+            //Bind the shader
+            OpenGL.UseProgram(Program);
+
+            // Set the color uniform
+            int colorLocation = OpenGL.GetUniformLocation(Program, "uColor");
+            OpenGL.Uniform4(colorLocation, 0.2f, 0.3f, 0.8f, 1.0f);
+
+            // Create the projection matrix
+            Matrix4X4<float> projectionMatrix = Matrix4X4.CreateOrthographicOffCenter(0.0f, MainWindow.Size.X, 0.0f, MainWindow.Size.Y, -1.0f, 1.0f);
+
+            //Set the mvp uniform
+            int mvpLocation = OpenGL.GetUniformLocation(Program, "uMVP");
+            OpenGL.UniformMatrix4(mvpLocation, 1, false, (float*)&projectionMatrix);
 
             // Register the attribute as 3 floats
             OpenGL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), null);
@@ -228,55 +236,59 @@ namespace Notator
 
         #region Private Methods
 
-        private uint CreateShader(string vertexSource, string fragmentSource)
+
+        /// <summary>
+        /// Read and process a shader file.
+        /// </summary>
+        /// <param name="fileName">The file to read, including the file extension. Must be within resources/shaders.</param>
+        /// <returns>An array containing the shader files. [0] is vertex, [1] is fragment.</returns>
+        private string[] ReadShaderFile(string fileName)
         {
-            // Create the shader program
-            uint program = OpenGL.CreateProgram();
+            // Read the shader file
+            IEnumerable<string> lines = File.ReadLines($"resources/shaders/{fileName}");
 
-            // Compile the shader source code
-            uint vertexShader = CompileShader(ShaderType.VertexShader, vertexSource);
-            uint fragmentShader = CompileShader(ShaderType.FragmentShader, fragmentSource);
+            // Initialise a string writer array
+            StringWriter[] shaderWriter = new StringWriter[ShaderTypes.Count];
 
-            // Attach the shaders to the program
-            OpenGL.AttachShader(program, vertexShader);
-            OpenGL.AttachShader(program, fragmentShader);
+            // Initialise the writers inside the array
+            for (int i = 0; i < shaderWriter.Length; i++)
+            {
+                shaderWriter[i] = new StringWriter();
+            }
 
-            // Link the program
-            OpenGL.LinkProgram(program);
+            int shaderType = -1;
+            foreach (string line in lines)
+            {
+                // If the line is a shader type declaration...
+                if (line.Contains("#shader"))
+                {
+                    // For each type in the type list...
+                    foreach (ShaderInfo info in ShaderTypes.Values)
+                    {
+                        // Check to see if it matches the name...
+                        if (line.Contains(info.Name, StringComparison.CurrentCultureIgnoreCase))
+                        {
+                            // And if so, set the type to the index.
+                            shaderType = info.Index;
+                        }
+                    }
+                }
+                // Else the line is shader code...
+                else
+                {
+                    // So write to the correct string writer
+                    shaderWriter[shaderType].WriteLine(line);
+                }
+            }
 
-            // Validate the program
-            OpenGL.ValidateProgram(program);
+            // Convert string writer array to string
+            string[] output = new string[shaderWriter.Length];
+            for (int i = 0; i < shaderWriter.Length; i++)
+            {
+                output[i] = shaderWriter[i].ToString();
+            }
 
-            // Detach the shaders
-            OpenGL.DetachShader(program, vertexShader);
-            OpenGL.DetachShader(program, fragmentShader);
-
-            // Delete the shaders
-            OpenGL.DeleteShader(vertexShader);
-            OpenGL.DeleteShader(fragmentShader);
-
-            // return the program
-            return program;
-        }
-
-        private uint CompileShader(ShaderType type, string source)
-        {
-            // Create the shader
-            uint shader = OpenGL.CreateShader(type);
-
-            // Set the shader source
-            OpenGL.ShaderSource(shader, source);
-
-            // Compile the shader
-            OpenGL.CompileShader(shader);
-
-            // Check the compile status of the shaders
-            OpenGL.GetShader(shader, ShaderParameterName.CompileStatus, out int status);
-            if (status == (int)GLEnum.False)
-                throw new Exception($"{ShaderNames[type]} shader failed to compile: " + OpenGL.GetShaderInfoLog(shader));
-
-            // return the shader
-            return shader;
+            return output;
         }
 
         #endregion
