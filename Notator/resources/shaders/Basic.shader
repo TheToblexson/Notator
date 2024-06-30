@@ -27,8 +27,7 @@ in vec4 vColor;
 in vec2 vTexCoord;
 in float vTexIndex;
 
-uniform vec4 uColor;
-uniform sampler2D uTextures[2];
+uniform sampler2D uTextures[8];
 
 void main()
 {
