@@ -1,11 +1,21 @@
 ﻿#shader vertex
 #version 330 core
 layout (location = 0) in vec3 aPosition;
+layout (location = 1) in vec4 aColor;
+layout (location = 2) in vec2 aTexCoord;
+layout (location = 3) in float aTexIndex;
 
 uniform mat4 uMVP;
 
+out vec4 vColor;
+out vec2 vTexCoord;
+out float vTexIndex;
+
 void main()
 {
+    vColor = aColor;
+    vTexCoord = aTexCoord;
+    vTexIndex = aTexIndex;
     gl_Position = uMVP * vec4(aPosition.x, aPosition.y, aPosition.z, 1.0);
 }
 
@@ -13,9 +23,16 @@ void main()
 #version 330 core
 layout (location = 0) out vec4 oColor;
 
+in vec4 vColor;
+in vec2 vTexCoord;
+in float vTexIndex;
+
 uniform vec4 uColor;
+uniform sampler2D uTextures[2];
 
 void main()
 {
-    oColor = uColor;
+    int index = int(vTexIndex);
+    //oColor = vColor;
+    oColor = texture(uTextures[index], vTexCoord);
 }

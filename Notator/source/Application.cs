@@ -2,6 +2,7 @@
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
+using StbImageSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -10,16 +11,80 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Notator
 {
+    //TODO: Textures and Dynamic Geometry
+
     internal class Application
     {
+        #region Structs
+
+        struct Color(float red, float green, float blue, float alpha)
+        {
+            public float Red { get; set; } = red;
+            public float Green { get; set; } = green;
+            public float Blue { get; set; } = blue;
+            public float Alpha { get; set; } = alpha;
+        }
+
         struct ShaderInfo(string name, int index)
         {
             public readonly string Name => name;
             public readonly int Index => index;
         }
+
+        struct Vertex
+        {
+            public Vertex(float posX, float posY, float posZ,
+                          float red, float green, float blue, float alpha,
+                          float texX, float texY, float texIndex)
+            {
+                Vertices = [posX, posY, posZ, red, green, blue, alpha, texX, texY, texIndex];
+            }
+
+            public float[] Vertices { get; private set; } = new float[Count];
+            public readonly Vector3D<float> Position
+            {
+                get => new(Vertices[0], Vertices[1], Vertices[2]);
+                set
+                {
+                    Vertices[0] = value.X;
+                    Vertices[1] = value.Y;
+                    Vertices[2] = value.Z;
+                }
+            }
+            public readonly Color Color
+            {
+                get => new(Vertices[3], Vertices[4], Vertices[5], Vertices[6]);
+                set
+                {
+                    Vertices[3] = value.Red;
+                    Vertices[4] = value.Green;
+                    Vertices[5] = value.Blue;
+                    Vertices[6] = value.Alpha;
+                }
+            }
+            public readonly Vector2D<float> TextureCoordinates
+            {
+                get => new(Vertices[7], Vertices[8]);
+                set
+                {
+                    Vertices[7] = value.X;
+                    Vertices[8] = value.Y;
+                }
+            }
+            public readonly float TextureIndex
+            {
+                get => Vertices[9];
+                set => Vertices[9] = value;
+            }
+            public static uint Count = 10;
+            public static uint Size => Count * sizeof(float);
+        }
+
+        #endregion
 
         #region Private Properties
 
@@ -27,7 +92,7 @@ namespace Notator
 
         private GL OpenGL { get; set; }
 
-        private uint Vao {  get; set; }
+        private uint Vao { get; set; }
 
         private uint Vbo { get; set; }
 
@@ -35,19 +100,30 @@ namespace Notator
 
         private uint Program { get; set; }
 
-        private static float[] Vertices =>
-        [
-            //X    Y      Z
-            100.0f, 100.0f, 0.0f,
-            200.0f, 100.0f, 0.0f,
-            200.0f, 200.0f, 0.0f,
-            100.0f, 200.0f, 0.0f
-        ];
+        private static List<float> Vertices { get; } = [];
 
+        /*private static float[] Vertices =>
+        [
+          //X       Y       Z       R     G     B     A         TexX  TexY      TexID
+            100.0f, 100.0f, 0.0f,   0.5f, 0.0f, 0.5f, 1.0f,     0.0f, 0.0f,     0.0f,
+            200.0f, 100.0f, 0.0f,   0.5f, 0.0f, 0.5f, 1.0f,     1.0f, 0.0f,     0.0f,
+            200.0f, 200.0f, 0.0f,   0.5f, 0.0f, 0.5f, 1.0f,     1.0f, 1.0f,     0.0f,
+            100.0f, 200.0f, 0.0f,   0.5f, 0.0f, 0.5f, 1.0f,     0.0f, 1.0f,     0.0f,
+
+            300.0f, 300.0f, 0.0f,   0.0f, 0.5f, 1.0f, 1.0f,     0.0f, 0.0f,     1.0f,
+            400.0f, 300.0f, 0.0f,   0.0f, 0.5f, 1.0f, 1.0f,     1.0f, 0.0f,     1.0f,
+            400.0f, 400.0f, 0.0f,   0.0f, 0.5f, 1.0f, 1.0f,     1.0f, 1.0f,     1.0f,
+            300.0f, 400.0f, 0.0f,   0.0f, 0.5f, 1.0f, 1.0f,     0.0f, 1.0f,     1.0f,
+        ];*/
+
+        // Change to dynamic later
         private static uint[] Indices =>
         [
             0u, 1u, 3u,
-            1u, 2u, 3u
+            1u, 2u, 3u,
+
+            4u, 5u, 7u,
+            5u, 6u, 7u
         ];
 
         private static Dictionary<ShaderType, ShaderInfo> ShaderTypes => new() 
@@ -55,6 +131,9 @@ namespace Notator
             { ShaderType.VertexShader,   new("Vertex",   0) }, 
             { ShaderType.FragmentShader, new("Fragment", 1) } 
         };
+
+        private static uint AttributesCount { get; set; } = 0;
+        private static nint AttributesPointer { get; set; } = 0;
 
         #endregion
 
@@ -100,7 +179,7 @@ namespace Notator
             OpenGL = MainWindow.CreateOpenGL();
 
             // Set the clear color
-            OpenGL.ClearColor(Color.Gray);
+            OpenGL.ClearColor(System.Drawing.Color.Gray);
 
             // Create the vertex array
             Vao = OpenGL.GenVertexArray();
@@ -112,10 +191,23 @@ namespace Notator
             // Bind the vertex buffer
             OpenGL.BindBuffer(BufferTargetARB.ArrayBuffer, Vbo);
 
-            // Buffer the vertex data
-            fixed (void* buffer = Vertices)
-                OpenGL.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(Vertices.Length * sizeof(float)), buffer, BufferUsageARB.StaticDraw);
+            // Create dynamic vertex buffer
+            OpenGL.BufferData(BufferTargetARB.ArrayBuffer, Vertex.Size * 1000, null, BufferUsageARB.DynamicDraw);
 
+            /*
+            // Create a quad
+            Vertices.AddRange(new Vertex(100.0f, 100.0f, 0.0f, 0.5f, 0.0f, 0.5f, 1.0f, 0.0f, 0.0f, 0.0f).Vertices);
+            Vertices.AddRange(new Vertex(200.0f, 100.0f, 0.0f, 0.5f, 0.0f, 0.5f, 1.0f, 1.0f, 0.0f, 0.0f).Vertices);
+            Vertices.AddRange(new Vertex(200.0f, 200.0f, 0.0f, 0.5f, 0.0f, 0.5f, 1.0f, 1.0f, 1.0f, 0.0f).Vertices);
+            Vertices.AddRange(new Vertex(100.0f, 200.0f, 0.0f, 0.5f, 0.0f, 0.5f, 1.0f, 0.0f, 1.0f, 0.0f).Vertices);
+            */
+
+            //float[] vertices = Vertices.ToArray();
+
+            // Buffer the vertex data
+            //fixed (void* buffer = vertices)
+            //    OpenGL.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertices.Length * sizeof(float)), buffer, BufferUsageARB.StaticDraw);
+            
             // Create the index buffer
             Ibo = OpenGL.GenBuffer();
             // Bind the index buffer
@@ -149,7 +241,7 @@ namespace Notator
             OpenGL.CompileShader(fragmentShader);
             // Check that the shader has compiled
             OpenGL.GetShader(fragmentShader, ShaderParameterName.CompileStatus, out int fragmentStatus);
-            if (vertexStatus != (int)GLEnum.True)
+            if (fragmentStatus != (int)GLEnum.True)
                 throw new Exception("Fragment shader failed to compile: " + OpenGL.GetShaderInfoLog(fragmentShader));
 
             // Create the shader program
@@ -178,6 +270,23 @@ namespace Notator
             //Bind the shader
             OpenGL.UseProgram(Program);
 
+            // Load the images
+            ImageResult image1 = ImageResult.FromMemory(File.ReadAllBytes("resources/textures/silk.png"), ColorComponents.RedGreenBlueAlpha);
+            ImageResult image2 = ImageResult.FromMemory(File.ReadAllBytes("resources/textures/silk2.png"), ColorComponents.RedGreenBlueAlpha);
+
+            // Create the textures
+            uint texture1 = CreateTexture("silk.png");
+            uint texture2 = CreateTexture("silk2.png");
+
+            // Bind the textures to the slots
+            OpenGL.BindTextureUnit(0, texture1);
+            OpenGL.BindTextureUnit(1, texture2);
+
+            // Set the texture uniform
+            int textureLocation = OpenGL.GetUniformLocation(Program, "uTextures");
+            int[] samplers = [0, 1];
+            OpenGL.Uniform1(textureLocation, 2, samplers);
+
             // Set the color uniform
             int colorLocation = OpenGL.GetUniformLocation(Program, "uColor");
             OpenGL.Uniform4(colorLocation, 0.2f, 0.3f, 0.8f, 1.0f);
@@ -189,10 +298,22 @@ namespace Notator
             int mvpLocation = OpenGL.GetUniformLocation(Program, "uMVP");
             OpenGL.UniformMatrix4(mvpLocation, 1, false, (float*)&projectionMatrix);
 
-            // Register the attribute as 3 floats
-            OpenGL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), null);
-            // Enable the attribute
-            OpenGL.EnableVertexAttribArray(0);
+            // Register the position attribute as 3 floats
+            AddAttribute(3);
+            // Register the color attribute as 4 floats
+            AddAttribute(4);
+            // Register the texture coordinate attribute as 2 floats
+            AddAttribute(2);
+            // Register the texture index attribute as 1 float
+            AddAttribute(1);
+        }
+
+        private void AddAttribute(uint size)
+        {
+            OpenGL.VertexAttribPointer(AttributesCount, (int)size, VertexAttribPointerType.Float, false, Vertex.Size, AttributesPointer);
+            OpenGL.EnableVertexAttribArray(AttributesCount);
+            AttributesCount += 1;
+            AttributesPointer += (nint)(size * sizeof(float));
         }
 
         /// <summary>
@@ -201,6 +322,38 @@ namespace Notator
         /// <param name="deltaTime">The time (in seconds) since the last render call.</param>
         private void OnUpdate(double obj)
         {
+            // Create a quad
+            Vertices.AddRange(new Vertex(100.0f, 100.0f, 0.0f, 0.5f, 0.0f, 0.5f, 1.0f, 0.0f, 0.0f, 0.0f).Vertices);
+            Vertices.AddRange(new Vertex(200.0f, 100.0f, 0.0f, 0.5f, 0.0f, 0.5f, 1.0f, 1.0f, 0.0f, 0.0f).Vertices);
+            Vertices.AddRange(new Vertex(200.0f, 200.0f, 0.0f, 0.5f, 0.0f, 0.5f, 1.0f, 1.0f, 1.0f, 0.0f).Vertices);
+            Vertices.AddRange(new Vertex(100.0f, 200.0f, 0.0f, 0.5f, 0.0f, 0.5f, 1.0f, 0.0f, 1.0f, 0.0f).Vertices);
+
+            // Create a quad
+            Vertices.AddRange(new Vertex(300.0f, 300.0f, 1.0f, 0.5f, 0.0f, 0.5f, 1.0f, 0.0f, 0.0f, 1.0f).Vertices);
+            Vertices.AddRange(new Vertex(400.0f, 300.0f, 1.0f, 0.5f, 0.0f, 0.5f, 1.0f, 1.0f, 0.0f, 1.0f).Vertices);
+            Vertices.AddRange(new Vertex(400.0f, 400.0f, 1.0f, 0.5f, 0.0f, 0.5f, 1.0f, 1.0f, 1.0f, 1.0f).Vertices);
+            Vertices.AddRange(new Vertex(300.0f, 400.0f, 1.0f, 0.5f, 0.0f, 0.5f, 1.0f, 0.0f, 1.0f, 1.0f).Vertices);
+
+
+            /*private static float[] Vertices =>
+            [
+              //X       Y       Z       R     G     B     A         TexX  TexY      TexID
+                100.0f, 100.0f, 0.0f,   0.5f, 0.0f, 0.5f, 1.0f,     0.0f, 0.0f,     0.0f,
+                200.0f, 100.0f, 0.0f,   0.5f, 0.0f, 0.5f, 1.0f,     1.0f, 0.0f,     0.0f,
+                200.0f, 200.0f, 0.0f,   0.5f, 0.0f, 0.5f, 1.0f,     1.0f, 1.0f,     0.0f,
+                100.0f, 200.0f, 0.0f,   0.5f, 0.0f, 0.5f, 1.0f,     0.0f, 1.0f,     0.0f,
+
+                300.0f, 300.0f, 0.0f,   0.0f, 0.5f, 1.0f, 1.0f,     0.0f, 0.0f,     1.0f,
+                400.0f, 300.0f, 0.0f,   0.0f, 0.5f, 1.0f, 1.0f,     1.0f, 0.0f,     1.0f,
+                400.0f, 400.0f, 0.0f,   0.0f, 0.5f, 1.0f, 1.0f,     1.0f, 1.0f,     1.0f,
+                300.0f, 400.0f, 0.0f,   0.0f, 0.5f, 1.0f, 1.0f,     0.0f, 1.0f,     1.0f,
+            ];*/
+
+            //  Bind buffer
+            OpenGL.BindBuffer(BufferTargetARB.ArrayBuffer, Vbo);
+
+            // Add subdata to the buffer
+            OpenGL.BufferSubData(BufferTargetARB.ArrayBuffer, 0, [.. Vertices]);
         }
 
         /// <summary>
@@ -211,6 +364,7 @@ namespace Notator
         {
             // Clear the frame
             OpenGL.Clear(ClearBufferMask.ColorBufferBit);
+
 
             // Bind the vertex array
             OpenGL.BindVertexArray(Vao);
@@ -289,6 +443,47 @@ namespace Notator
             }
 
             return output;
+        }
+
+
+        private unsafe uint CreateTexture(string fileName)
+        {
+            // Create the texture object
+            uint texture = OpenGL.GenTexture();
+
+            // Set the flip flag because OpenGL reads bottom up.
+            StbImage.stbi_set_flip_vertically_on_load(1);
+
+            // Get the image
+            ImageResult image = ImageResult.FromMemory(File.ReadAllBytes($"resources/textures/{fileName}"), ColorComponents.RedGreenBlueAlpha);
+
+
+            // Bind the texture to a texture slot
+            OpenGL.ActiveTexture(TextureUnit.Texture1);
+            OpenGL.BindTexture(TextureTarget.Texture2D, texture);
+
+            // Attach the image to the texture
+            fixed (byte* ptr = image.Data)
+                OpenGL.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, (uint)image.Width,
+                    (uint)image.Height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, ptr);
+
+            // Set the texture parameters
+            int wrapParameter = (int)TextureWrapMode.Repeat;
+            int minParameter = (int)TextureMinFilter.NearestMipmapNearest;
+            int magParameter = (int)TextureMagFilter.Nearest;
+            OpenGL.TexParameterI(GLEnum.Texture2D, GLEnum.TextureWrapS, in wrapParameter);
+            OpenGL.TexParameterI(GLEnum.Texture2D, GLEnum.TextureWrapT, in wrapParameter);
+            OpenGL.TexParameterI(GLEnum.Texture2D, GLEnum.TextureMinFilter, in minParameter);
+            OpenGL.TexParameterI(GLEnum.Texture2D, GLEnum.TextureMagFilter, in magParameter);
+
+            // Enable blending
+            OpenGL.Enable(EnableCap.Blend);
+            OpenGL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+
+            // Generate Mipmap
+            OpenGL.GenerateMipmap(TextureTarget.Texture2D);
+
+            return texture;
         }
 
         #endregion
