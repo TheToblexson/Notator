@@ -3,7 +3,7 @@ using System.Drawing;
 
 namespace Notator.Rendering
 {
-    internal class IndexBuffer
+    public class IndexBuffer
     {
         #region Private Properties
 

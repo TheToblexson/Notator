@@ -2,7 +2,7 @@
 
 namespace Notator.Rendering
 {
-    internal class VertexBuffer
+    public class VertexBuffer
     {
         #region Private Properties
 

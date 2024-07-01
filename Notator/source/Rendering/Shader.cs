@@ -4,7 +4,7 @@ using StbImageSharp;
 
 namespace Notator.Rendering
 {
-    internal class Shader
+    public class Shader
     {
         #region Structs
 
@@ -90,11 +90,8 @@ namespace Notator.Rendering
             // Set the texture (samplers) uniform
             SetUniform1("uTextures", Samplers);
 
-            // Create the projection matrix
-            Matrix4X4<float> projectionMatrix = Matrix4X4.CreateOrthographicOffCenter(0.0f, windowSize.X, 0.0f, windowSize.Y, -1.0f, 1.0f);
-
-            //Set the mvp uniform
-            SetUniformMatrix("uMVP",  projectionMatrix);
+            // Set the projection matrix
+            SetProjection(windowSize);
         }
 
         #endregion
@@ -263,6 +260,15 @@ namespace Notator.Rendering
         #endregion
 
         #region Public Methods
+
+        public void SetProjection(Vector2D<int> windowSize)
+        {
+            Matrix4X4<float> projectionMatrix = Matrix4X4.CreateOrthographicOffCenter(0.0f, windowSize.X, 0.0f, windowSize.Y, -1.0f, 1.0f);
+
+            //Set the mvp uniform
+            SetUniformMatrix("uMVP", projectionMatrix);
+
+        }
 
         /// <summary>
         /// Bind a texture to the selected texture slot.
