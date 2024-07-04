@@ -16,6 +16,12 @@ namespace Notator.Rendering.Shapes
     /// <param name="alpha">The alpha component of the color.</param>
     public struct RenderColor(float red, float green, float blue, float alpha)
     {
+        #region Properties
+
+        public static RenderColor Transparent => new(0f, 0f, 0f, 0f);
+
+        #endregion
+
         public RenderColor(Color color) : this(color.R / 255, color.G / 255, color.B / 255, color.A / 255)
         { }
 
@@ -38,5 +44,7 @@ namespace Notator.Rendering.Shapes
         /// The normalised alpha value.
         /// </summary>
         public float A { get; set; } = alpha;
+
+        public static implicit operator RenderColor(Color color) => new(color);
     }
 }

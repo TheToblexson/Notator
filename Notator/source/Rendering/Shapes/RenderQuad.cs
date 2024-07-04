@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Notator.Rendering.Shapes
 {
-    internal class RenderQuad : RenderShape
+    public class RenderQuad : RenderShape
     {
         #region Private Properties
 

@@ -34,7 +34,7 @@ namespace Notator.Rendering
         /// <summary>
         /// The window that this renderer is attached to.
         /// </summary>
-        public IWindow MainWindow { get; }
+        public IWindow Window { get; }
 
         /// <summary>
         /// The OpenGL instance
@@ -72,10 +72,10 @@ namespace Notator.Rendering
         /// <param name="shaderFileName">The file name of the shader (inside resources/shaders).</param>
         public Renderer(IWindow mainWindow, string shaderFileName)
         {
-            MainWindow = mainWindow;
+            Window = mainWindow;
 
             // Create the OpenGL instance
-            OpenGL = MainWindow.CreateOpenGL();
+            OpenGL = Window.CreateOpenGL();
 
             // Set the clear color
             OpenGL.ClearColor(Color.Gray);
@@ -93,7 +93,7 @@ namespace Notator.Rendering
             IndexBuffer.Bind();
 
             // Create the shader program
-            Shader = new Shader(OpenGL, "Basic.shader", 8, MainWindow.Size);
+            Shader = new Shader(OpenGL, "Basic.shader", 8, Window.Size);
 
             // Add the position, color, texture coordinate and texture index attributes
             AddAttribute(3, 4, 2, 1);
@@ -197,8 +197,8 @@ namespace Notator.Rendering
             }
 
             // Add subdata to the buffer
-            VertexBuffer.BufferSubData([.. vertices]);
-            IndexBuffer.BufferSubData([.. indices]);
+            VertexBuffer.BufferSubData(vertices.ToArray());
+            IndexBuffer.BufferSubData(indices.ToArray());
         }
 
         public unsafe void Render()

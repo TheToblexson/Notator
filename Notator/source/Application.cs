@@ -1,4 +1,5 @@
-﻿using Notator.Rendering;
+﻿using Notator.Layers;
+using Notator.Rendering;
 using Notator.Rendering.Shapes;
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
@@ -9,17 +10,22 @@ namespace Notator
 { 
     public class Application
     {
-        #region Private Properties
+        #region Fields
 
         /// <summary>
         /// The main window instance.
         /// </summary>
-        private IWindow MainWindow { get; init; }
+        private IWindow _window;
 
         /// <summary>
         /// The renderer instance.
         /// </summary>
-        private Renderer Renderer { get; set; }
+        private Renderer _renderer;
+
+        /// <summary>
+        /// A collection of the UI layers.
+        /// </summary>
+        private Dictionary<string,Layer> _layers = [];
 
         #endregion
 
@@ -40,16 +46,16 @@ namespace Notator
             };
 
             // Create the window
-            MainWindow = Window.Create(options);
+            _window = Window.Create(options);
 
             // Attach methods to the window events
-            MainWindow.Load += OnLoad;
-            MainWindow.Update += OnUpdate;
-            MainWindow.Render += OnRender;
-            MainWindow.Closing += OnClosing;
+            _window.Load += OnLoad;
+            _window.Update += OnUpdate;
+            _window.Render += OnRender;
+            _window.Closing += OnClosing;
 
             // Tell the window to run
-            MainWindow.Run();
+            _window.Run();
         }
 
         #endregion
@@ -62,11 +68,14 @@ namespace Notator
         private unsafe void OnLoad()
         {
             // Create the renderer
-            Renderer = new Renderer(MainWindow, "Basic.shader");
+            _renderer = new Renderer(_window, "Basic.shader");
 
             // Bind the textures
-            Renderer.BindTexture("silk.png",  0);
-            Renderer.BindTexture("silk2.png", 1);
+            _renderer.BindTexture("silk.png",  0);
+            _renderer.BindTexture("silk2.png", 1);
+
+            // Add layers
+            _layers.Add("Taskbar", new Layer(_renderer));
         }
 
         /// <summary>
@@ -75,16 +84,13 @@ namespace Notator
         /// <param name="deltaTime">The time (in seconds) since the last render call.</param>
         private void OnUpdate(double deltaTime)
         {
-            // Create 2 quads
-            RenderShape quad1 = new RenderQuad(100f, 100f, 0f, 100f, 100f, new RenderColor(Color.Aqua));
-            RenderShape quad2 = new RenderQuad(300f, 300f, 0f, 100f, 100f, 0);
-
-            // Add the quads to the renderer
-            Renderer.AddShape("quad1", quad1);
-            Renderer.AddShape("quad2", quad2);
+            foreach (Layer layer in _layers.Values)
+            {
+                layer.Update();
+            }
 
             // update the renderer
-            Renderer.Update();
+            _renderer.Update();
         }
 
         /// <summary>
@@ -94,7 +100,7 @@ namespace Notator
         private unsafe void OnRender(double deltaTime)
         {
             // Tell the renderer to render
-            Renderer.Render();
+            _renderer.Render();
         }
 
         /// <summary>
@@ -103,7 +109,7 @@ namespace Notator
         private void OnClosing()
         {
             // Remove the renderer from OpenGL
-            Renderer.Delete();
+            _renderer.Delete();
         }
 
         #endregion
