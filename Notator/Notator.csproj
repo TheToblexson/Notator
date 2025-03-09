@@ -17,16 +17,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="resources\shaders\Shader.shader">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="resources\textures\silk.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="resources\textures\silk2.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="resources\shaders\" />
   </ItemGroup>
 
 </Project>
