@@ -1,15 +1,13 @@
-﻿using Notator.source;
-using Silk.NET.Input;
+﻿using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
-using StbImageSharp;
-using System.Diagnostics;
 using System.Drawing;
+using System.Numerics;
 
 namespace Notator
 {
-    //Next: 1.5
+    //Next: 1.6
 
     public class Application
     {
@@ -39,6 +37,7 @@ namespace Notator
         private static VertexArrayObject<float, uint> VertexArray { set; get; }
         private static ShaderProgram Shader {  set; get; }
         private static TextureObject Texture { set; get; }
+        private static Transform Transform { set; get; }
 
         #endregion
 
@@ -95,6 +94,12 @@ namespace Notator
             Shader = new(OpenGL, "resources/shaders/Shader.shader");
 
             Texture = new(OpenGL, "resources/textures/silk.png");
+
+            Transform = new();
+
+            Transform.Position = new Vector3(0.5f, 0.5f, 0.0f);
+            Transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.0f);
+            Transform.Scale = 0.5f;
         }
 
         private static void OnRender(double deltaTime) 
@@ -106,6 +111,7 @@ namespace Notator
             Texture.Bind(TextureUnit.Texture0);
 
             Shader.SetUniform("uTexture", 0);
+            Shader.SetUniform("uModel", Transform.ViewMatrix);
 
             OpenGL.DrawElements(PrimitiveType.Triangles, (uint)indices.Length, DrawElementsType.UnsignedInt, new ReadOnlySpan<uint>());
         }

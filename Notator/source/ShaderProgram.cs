@@ -1,5 +1,7 @@
 ﻿using Silk.NET.Core;
 using Silk.NET.OpenGL;
+using System.Numerics;
+using System.Xml.Linq;
 
 namespace Notator
 {
@@ -44,6 +46,34 @@ namespace Notator
             if (location == -1)
                 throw new Exception($"{name} uniform not found on shader.");
             OpenGL.Uniform1(location, value);
+        }
+
+        public void SetUniform(string name, Matrix4x4 matrix)
+        {
+            int location = OpenGL.GetUniformLocation(ID, name);
+            if (location == -1)
+                throw new Exception($"{name} uniform not found on shader.");
+            float[] array = MatrixToArray(new float[,]
+            {
+                { matrix.M11, matrix.M12, matrix.M13, matrix.M14 },
+                { matrix.M21, matrix.M22, matrix.M23, matrix.M24 },
+                { matrix.M31, matrix.M32, matrix.M33, matrix.M34 },
+                { matrix.M41, matrix.M42, matrix.M43, matrix.M44 },
+            });
+            ReadOnlySpan<float> span = new(array);
+            OpenGL.UniformMatrix4(location, 1, false, span);
+        }
+
+        private static float[] MatrixToArray(float[,] matrix)
+        {
+            int rowCount = matrix.GetLength(0);
+            int columnCount = matrix.GetLength(1);
+            float[] array = new float[rowCount * columnCount];
+            int current = 0;
+            for (int i = 0; i < rowCount; i++)
+                for (int j = 0; j < rowCount; j++)
+                    array[current++] = matrix[i, j];
+            return array;
         }
 
         private uint CompileShader(ShaderType type, string file)
