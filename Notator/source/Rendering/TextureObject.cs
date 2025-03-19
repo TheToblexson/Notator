@@ -3,9 +3,9 @@ using StbImageSharp;
 using System.Diagnostics;
 using System.Xml.Linq;
 
-namespace Notator
+namespace Notator.source.Rendering
 {
-    internal class TextureObject : IDisposable
+    public class TextureObject : IDisposable
     {
         private GL OpenGL { init; get; }
         private uint ID { init; get; }
@@ -16,7 +16,7 @@ namespace Notator
             ID = OpenGL.GenTexture();
 
             Bind();
-            
+
             ImageResult image = ImageResult.FromMemory(File.ReadAllBytes(filepath), ColorComponents.RedGreenBlueAlpha);
             ReadOnlySpan<byte> data = new(image.Data);
 
@@ -25,6 +25,8 @@ namespace Notator
                 PixelType.UnsignedByte, data);
 
             SetParameters();
+
+            Unbind();
         }
 
         private void SetParameters()
@@ -32,7 +34,7 @@ namespace Notator
             int texWrapMode = (int)GLEnum.ClampToEdge;
             int texMinFilter = (int)GLEnum.LinearMipmapLinear;
             int texMagFilter = (int)GLEnum.Linear;
-            
+
             OpenGL.TexParameterI(GLEnum.Texture2D, GLEnum.TextureWrapS, in texWrapMode);
             OpenGL.TexParameterI(GLEnum.Texture2D, GLEnum.TextureWrapT, in texWrapMode);
             OpenGL.TexParameterI(GLEnum.Texture2D, GLEnum.TextureMinFilter, in texMinFilter);
@@ -51,6 +53,14 @@ namespace Notator
             OpenGL.ActiveTexture(textureSlot);
             OpenGL.BindTexture(TextureTarget.Texture2D, ID);
         }
+
+        public void Unbind(TextureUnit textureSlot = TextureUnit.Texture0)
+        {
+            OpenGL.ActiveTexture(textureSlot);
+            OpenGL.BindTexture(TextureTarget.Texture2D, 0);
+        }
+
+
 
         public void Dispose()
         {

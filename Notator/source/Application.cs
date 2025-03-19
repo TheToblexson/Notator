@@ -1,58 +1,61 @@
-﻿using Silk.NET.Input;
+﻿using Notator.source.Rendering;
+using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
 using System.Drawing;
 using System.Numerics;
+using System.Reflection;
+using System.Runtime.ConstrainedExecution;
 
 namespace Notator
 {
-    //Next: 1.6
+    //Working on:
+    //Move Renderer to Class
 
     public class Application
     {
         #region Fields
 
-        static float[] vertices =
+        static readonly float[] vertices =
         [
-             0.5f,  0.5f, 0.5f,     1.0f, 0.0f,
-             0.5f, -0.5f, 0.0f,     1.0f, 1.0f,
-            -0.5f, -0.5f, 0.0f,     0.0f, 1.0f,
-            -0.5f,  0.5f, 0.0f,     0.0f, 0.0f
+            200.0f, 200.0f, 0.0f,   0.2f, 0.6f, 1.0f, 1.0f,   0.0f, 1.0f,   1.0f, //bottom-left
+            200.0f, 400.0f, 0.0f,   0.2f, 0.6f, 1.0f, 1.0f,   0.0f, 0.0f,   1.0f, //top-left
+            400.0f, 400.0f, 0.0f,   0.2f, 0.6f, 1.0f, 1.0f,   1.0f, 0.0f,   1.0f, //top-right
+            400.0f, 200.0f, 0.0f,   0.2f, 0.6f, 1.0f, 1.0f,   1.0f, 1.0f,   1.0f, //bottom-right
+
+            600.0f, 200.0f, 0.0f,   1.0f, 1.0f, 0.2f, 1.0f,   0.0f, 1.0f,   2.0f, //bottom-left
+            600.0f, 400.0f, 0.0f,   1.0f, 1.0f, 0.2f, 1.0f,   0.0f, 0.0f,   2.0f, //top-left
+            800.0f, 400.0f, 0.0f,   1.0f, 1.0f, 0.2f, 1.0f,   1.0f, 0.0f,   2.0f, //top-right
+            800.0f, 200.0f, 0.0f,   1.0f, 1.0f, 0.2f, 1.0f,   1.0f, 1.0f,   2.0f, //bottom-right
         ];
-        static uint[] indices =
+        static readonly uint[] indices =
         [
-            0u, 1u, 3u,
-            1u, 2u, 3u
+            0u, 1u, 2u, 2u, 3u, 0u,
+            4u, 5u, 6u, 6u, 7u, 4u
         ];
 
         #endregion
 
         #region Properties
 
+        private static string Title { set; get; } = "Title";
+        private static Vector2D<int> Size { set; get; } = new(800, 600);
         private static IWindow AppWindow { set; get; }
-        private static GL OpenGL { set; get; }
-        private static BufferObject<float> VertexBuffer { set; get; }
-        private static BufferObject<uint> IndexBuffer { set; get; }
-        private static VertexArrayObject<float, uint> VertexArray { set; get; }
-        private static ShaderProgram Shader {  set; get; }
-        private static TextureObject Texture { set; get; }
-        private static Transform Transform { set; get; }
+        private static Renderer Renderer { set; get; }
 
         #endregion
 
         #region Constructor
 
         // Warning suppressed because there is a check in OnLoad for if OpenGL is null.
-        #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
         static Application()
         #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
         {
-            WindowOptions options = WindowOptions.Default with
-            {
-                Size = new Vector2D<int>(800, 600),
-                Title = "Title"
-            };
+            WindowOptions options = WindowOptions.Default;
+            options.Size = Size;
+            options.Title = Title;
 
             AppWindow = Window.Create(options);
             if (AppWindow == null)
@@ -78,56 +81,27 @@ namespace Notator
             foreach (IKeyboard keyboard in input.Keyboards)
                 keyboard.KeyDown += KeyDown;
 
-            OpenGL = AppWindow.CreateOpenGL();
-            if (OpenGL == null)
-                throw new Exception("OpenGL failed to initialise");
+            Renderer = new(AppWindow, "Shader.shader");
 
-            OpenGL.ClearColor(Color.CornflowerBlue);
-
-            VertexBuffer = new(OpenGL, new ReadOnlySpan<float>(vertices), BufferTargetARB.ArrayBuffer);
-            IndexBuffer = new(OpenGL, new ReadOnlySpan<uint>(indices), BufferTargetARB.ElementArrayBuffer);
-            VertexArray = new(OpenGL, VertexBuffer, IndexBuffer);
-
-            VertexArray.VertexAttribute(0, 3, VertexAttribPointerType.Float, 5, 0);
-            VertexArray.VertexAttribute(1, 2, VertexAttribPointerType.Float, 5, 3);
-
-            Shader = new(OpenGL, "resources/shaders/Shader.shader");
-
-            Texture = new(OpenGL, "resources/textures/silk.png");
-
-            Transform = new();
-
-            Transform.Position = new Vector3(0.5f, 0.5f, 0.0f);
-            Transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.0f);
-            Transform.Scale = 0.5f;
+            Renderer.AddTexture("silk.png");
+            Renderer.AddTexture("silk2.png");
         }
 
         private static void OnRender(double deltaTime) 
         {
-            OpenGL.Clear(ClearBufferMask.ColorBufferBit);
+            Renderer.UpdateBuffers(vertices, indices);
 
-            VertexArray.Bind();
-            Shader.Use();
-            Texture.Bind(TextureUnit.Texture0);
-
-            Shader.SetUniform("uTexture", 0);
-            Shader.SetUniform("uModel", Transform.ViewMatrix);
-
-            OpenGL.DrawElements(PrimitiveType.Triangles, (uint)indices.Length, DrawElementsType.UnsignedInt, new ReadOnlySpan<uint>());
+            Renderer.Render();
         }
 
         private static void OnFramebufferResize(Vector2D<int> size)
         {
-            OpenGL.Viewport(size);
+            Renderer.ResizeWindow(size);
         }
 
         private static void OnClose()
         {
-            VertexBuffer.Dispose();
-            IndexBuffer.Dispose();
-            VertexArray.Dispose();
-            Shader.Dispose();
-            Texture.Dispose();
+            Renderer.Dispose();
         }
 
         private static void KeyDown(IKeyboard keyboard, Key key, int keyCode)

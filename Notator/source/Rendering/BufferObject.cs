@@ -2,14 +2,15 @@
 using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 
-namespace Notator
+namespace Notator.source.Rendering
 {
     public class BufferObject<TDataType> : IDisposable
         where TDataType : unmanaged
     {
         private GL OpenGL { init; get; }
         private BufferTargetARB Type { init; get; }
-        private uint ID { init; get; } 
+        private uint ID { init; get; }
+        public uint Length { set; get; }
 
         public BufferObject(GL openGL, ReadOnlySpan<TDataType> data, BufferTargetARB type)
         {
@@ -17,10 +18,7 @@ namespace Notator
             Type = type;
             ID = OpenGL.GenBuffer();
 
-            Bind();
-
-            nuint size = (nuint)(data.Length * Marshal.SizeOf<TDataType>());
-            OpenGL.BufferData(Type, size, data, BufferUsageARB.StaticDraw);
+            SetBuffer(data);
         }
 
         public void Bind()
@@ -28,9 +26,23 @@ namespace Notator
             OpenGL.BindBuffer(Type, ID);
         }
 
+        public void Unbind()
+        {
+            OpenGL.BindBuffer(Type, 0);
+        }
+
         public void Dispose()
         {
             OpenGL.DeleteBuffer(ID);
+        }
+
+        internal void SetBuffer(ReadOnlySpan<TDataType> data)
+        {
+            Bind();
+            nuint size = (nuint)(data.Length * Marshal.SizeOf<TDataType>());
+            OpenGL.BufferData(Type, size, data, BufferUsageARB.StaticDraw);
+            Length = (uint)data.Length;
+            Unbind();
         }
     }
 }

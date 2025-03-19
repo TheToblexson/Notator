@@ -1,4 +1,4 @@
-﻿namespace Notator
+﻿namespace Notator.source.Rendering
 {
     internal class Program
     {

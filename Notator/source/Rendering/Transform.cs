@@ -1,6 +1,6 @@
 ﻿using System.Numerics;
 
-namespace Notator
+namespace Notator.source.Rendering
 {
     public class Transform
     {
@@ -10,7 +10,7 @@ namespace Notator
 
         public Transform() { }
 
-        public Matrix4x4 ViewMatrix =>  
+        public Matrix4x4 ModelMatrix =>
             Matrix4x4.Identity *
             Matrix4x4.CreateFromQuaternion(Rotation) *
             Matrix4x4.CreateScale(Scale) *
