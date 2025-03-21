@@ -1,4 +1,5 @@
 ﻿using Notator.source.Rendering;
+using Notator.source.Rendering.Shapes;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
@@ -11,29 +12,19 @@ using System.Runtime.ConstrainedExecution;
 namespace Notator
 {
     //Working on:
-    //Move Renderer to Class
+    //RenderLayers
 
     public class Application
     {
         #region Fields
 
-        static readonly float[] vertices =
-        [
-            200.0f, 200.0f, 0.0f,   0.2f, 0.6f, 1.0f, 1.0f,   0.0f, 1.0f,   1.0f, //bottom-left
-            200.0f, 400.0f, 0.0f,   0.2f, 0.6f, 1.0f, 1.0f,   0.0f, 0.0f,   1.0f, //top-left
-            400.0f, 400.0f, 0.0f,   0.2f, 0.6f, 1.0f, 1.0f,   1.0f, 0.0f,   1.0f, //top-right
-            400.0f, 200.0f, 0.0f,   0.2f, 0.6f, 1.0f, 1.0f,   1.0f, 1.0f,   1.0f, //bottom-right
+        static readonly RenderShape[] shapes =
+            [
+                new RenderRectangle(new(200f,200f,0f), new(200f,200f), new(0.2f,0.6f,1.0f,1.0f), 1),
+                new RenderRectangle(new(400f,200f,0f), new(200f,200f), new(1.0f,1.0f,0.2f,1.0f), 2),
+            ];
 
-            600.0f, 200.0f, 0.0f,   1.0f, 1.0f, 0.2f, 1.0f,   0.0f, 1.0f,   2.0f, //bottom-left
-            600.0f, 400.0f, 0.0f,   1.0f, 1.0f, 0.2f, 1.0f,   0.0f, 0.0f,   2.0f, //top-left
-            800.0f, 400.0f, 0.0f,   1.0f, 1.0f, 0.2f, 1.0f,   1.0f, 0.0f,   2.0f, //top-right
-            800.0f, 200.0f, 0.0f,   1.0f, 1.0f, 0.2f, 1.0f,   1.0f, 1.0f,   2.0f, //bottom-right
-        ];
-        static readonly uint[] indices =
-        [
-            0u, 1u, 2u, 2u, 3u, 0u,
-            4u, 5u, 6u, 6u, 7u, 4u
-        ];
+        static float change = 0.5f;
 
         #endregion
 
@@ -48,8 +39,8 @@ namespace Notator
 
         #region Constructor
 
-        // Warning suppressed because there is a check in OnLoad for if OpenGL is null.
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
+        // Warning suppressed because the renderer is created in OnLoad
+        #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
         static Application()
         #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
         {
@@ -87,10 +78,18 @@ namespace Notator
             Renderer.AddTexture("silk2.png");
         }
 
-        private static void OnRender(double deltaTime) 
+        private static void OnRender(double deltaTime)
         {
-            Renderer.UpdateBuffers(vertices, indices);
+            var colour = shapes[0].GetColour();
+            float newR = colour.R + (change * (float)deltaTime);
+            if (newR > 1 || newR < 0)
+            {
+                change *= -1;
+            }
 
+            shapes[0].SetColour(new(newR, colour.G, colour.B, colour.A));
+
+            Renderer.UpdateBuffers(shapes);
             Renderer.Render();
         }
 

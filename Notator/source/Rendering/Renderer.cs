@@ -1,4 +1,5 @@
-﻿using Silk.NET.Maths;
+﻿using Notator.source.Rendering.Shapes;
+using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
 using System.Drawing;
@@ -69,6 +70,26 @@ namespace Notator.source.Rendering
             VertexArray.BindAll();
             VertexBuffer.SetBuffer(new ReadOnlySpan<float>(vertices));
             IndexBuffer.SetBuffer(new ReadOnlySpan<uint>(indices));
+            VertexArray.UnbindAll();
+        }
+
+        internal void UpdateBuffers(RenderShape[] shapes)
+        {
+            VertexArray.BindAll();
+            //Extract vertices and indices from shapes
+            List<float> vertices = new();
+            List<uint> indices = new();
+            for (uint i = 0; i < shapes.Length; i++)
+            {
+                RenderShape shape = shapes[i];
+                vertices.AddRange(shape.VerticesArray);
+                indices.AddRange(shape.GetOffsetIndices(shape.VertexCount * i));
+            }
+            ReadOnlySpan<float> verticesSpan = new(vertices.ToArray());
+            VertexBuffer.SetBuffer(verticesSpan);
+            ReadOnlySpan<uint> indicesSpan = new(indices.ToArray());
+            IndexBuffer.SetBuffer(indicesSpan);
+
             VertexArray.UnbindAll();
         }
 

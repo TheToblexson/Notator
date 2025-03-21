@@ -35,5 +35,5 @@
     void main()
     {
         int index = int(vTexIndex);
-        oColour = texture(uTextures[index], vTexCoords) + vColour;
+        oColour = texture(uTextures[index], vTexCoords) * vColour;
     }
